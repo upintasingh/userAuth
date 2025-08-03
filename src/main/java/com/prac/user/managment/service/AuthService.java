@@ -3,10 +3,14 @@ package com.prac.user.managment.service;
 import com.prac.user.managment.Exception.PasswordMismatchException;
 import com.prac.user.managment.Exception.USerNOTFoundException;
 import com.prac.user.managment.Exception.UserAlreadyExistException;
+import com.prac.user.managment.models.Status;
 import com.prac.user.managment.models.USer;
+import com.prac.user.managment.models.UserSession;
+import com.prac.user.managment.repository.SessionRepo;
 import com.prac.user.managment.repository.USerRepository;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtParser;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.MacAlgorithm;
 import org.antlr.v4.runtime.misc.Pair;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -23,9 +27,15 @@ public class AuthService implements IAuthService {
 
     final BCryptPasswordEncoder bCryptPasswordEncoder;
 
-    public AuthService(USerRepository uSerRepository, BCryptPasswordEncoder bCryptPasswordEncoder) {
+    final SessionRepo sessionRepo;
+
+    final SecretKey secretKey;
+
+    public AuthService(USerRepository uSerRepository, BCryptPasswordEncoder bCryptPasswordEncoder, SessionRepo sessionRepo, SecretKey secretKey) {
         this.uSerRepository = uSerRepository;
         this.bCryptPasswordEncoder = bCryptPasswordEncoder;
+        this.sessionRepo = sessionRepo;
+        this.secretKey = secretKey;
     }
 
     @Override
@@ -67,12 +77,47 @@ public class AuthService implements IAuthService {
         claims.put("iss", "myorg");
         claims.put("userId", user.get().getId());
         claims.put("gen", System.currentTimeMillis());
-        claims.put("exp", System.currentTimeMillis() + 100000);
+        claims.put("exp", System.currentTimeMillis() + 10000);
         claims.put("roles", user.get().getRoles());
 
-        MacAlgorithm mcMacAlgorithm = Jwts.SIG.HS256;
-        SecretKey secretKey = mcMacAlgorithm.key().build();
+        /*MacAlgorithm mcMacAlgorithm = Jwts.SIG.HS256;
+        SecretKey secretKey = mcMacAlgorithm.key().build();*/
         String token = Jwts.builder().claims(claims).signWith(secretKey).compact();
+
+        UserSession userSession = new UserSession();
+        userSession.setToken(token);
+        userSession.setUser(user.get());
+        userSession.setStatus(Status.ACTIVE);
+        sessionRepo.save(userSession);
+
         return new Pair<>(user.get(), token);
+    }
+
+    @Override
+    public boolean validateToken(String token, Long userId) {
+        Optional<UserSession> optionalUserSession = sessionRepo.findByTokenAndUserId(token, userId);
+        if (optionalUserSession.isEmpty()) {
+            return false;
+        }
+
+        JwtParser jwtParser = Jwts.parser().verifyWith(secretKey).build();
+        Claims claims = jwtParser.parseSignedClaims(token).getPayload();
+
+         Long expiry = (Long) claims.get("exp");
+         long currentTime = System.currentTimeMillis();
+
+        System.out.println("tokenExpiry = "+expiry);
+        System.out.println("currentTime = "+currentTime);
+
+        if(currentTime > expiry) {
+            System.out.println("TOKEN HAS EXPIRED");
+            UserSession userSession = optionalUserSession.get();
+            userSession.setStatus(Status.INACTIVE);
+            sessionRepo.save(userSession);
+            return false;
+        }
+
+
+        return true;
     }
 }

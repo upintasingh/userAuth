@@ -1,8 +1,10 @@
 package com.prac.user.managment.controller;
 
+import com.prac.user.managment.Exception.UnauthorizedException;
 import com.prac.user.managment.dtos.LoginRequestDTO;
 import com.prac.user.managment.dtos.SignupRequestDTO;
 import com.prac.user.managment.dtos.UserDTO;
+import com.prac.user.managment.dtos.ValidateTokenReq;
 import com.prac.user.managment.models.USer;
 import com.prac.user.managment.service.IAuthService;
 import org.antlr.v4.runtime.misc.Pair;
@@ -40,6 +42,17 @@ public class UserController {
         headers.add(HttpHeaders.SET_COOKIE,token);
         return new ResponseEntity<>(userDTO, headers, HttpStatus.OK);
     }
+
+    @PostMapping("/validateToken")
+    public Boolean validateToken(@RequestBody ValidateTokenReq validateTokenReq) {
+      Boolean result = authService.validateToken(validateTokenReq.getToken(), validateTokenReq.getUserId());
+      if(!result) {
+          throw new UnauthorizedException("please provide valid token");
+      }
+      return result;
+    }
+
+
 
     private UserDTO from(USer user) {
         return UserDTO.builder().id(user.getId()).name(user.getName())
