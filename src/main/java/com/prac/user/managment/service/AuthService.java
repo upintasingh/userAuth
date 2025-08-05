@@ -77,7 +77,7 @@ public class AuthService implements IAuthService {
         claims.put("iss", "myorg");
         claims.put("userId", user.get().getId());
         claims.put("gen", System.currentTimeMillis());
-        claims.put("exp", System.currentTimeMillis() + 10000);
+        claims.put("exp", System.currentTimeMillis() + 1000000);
         claims.put("roles", user.get().getRoles());
 
         /*MacAlgorithm mcMacAlgorithm = Jwts.SIG.HS256;
